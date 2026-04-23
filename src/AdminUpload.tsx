@@ -15,7 +15,7 @@ interface Doc {
   unit?: string;
   section?: string;
   pdf_url?: string;
-  storage_backend?: string;   // "s3" | "local" | "local_fallback"
+  storage_backend?: string;
   uploaded_at: string;
   total_vectors?: number;
 }
@@ -46,13 +46,13 @@ interface DeleteReport {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const COURSES = ["Foundation", "Intermediate", "Final", "Self Paced","Others"] as const;
+// CS exam levels — different from CA
+const COURSES = ["CSEET", "Executive", "Professional", "Others"] as const;
 
 const LEVEL_ICONS: Record<string, string> = {
-  Foundation:   "🌱",
-  Intermediate: "📊",
-  Final:        "🏆",
-  "Self Paced": "🎯",
+  CSEET:        "🌱",
+  Executive:    "⚖️",
+  Professional: "🏛️",
   Others:       "📁",
 };
 
@@ -62,67 +62,28 @@ const STORAGE_BADGE: Record<string, { label: string; cls: string }> = {
   local_fallback: { label: "⚠ Local", cls: "storage-warn"  },
 };
 
-// ── Toast Component ───────────────────────────────────────────────────────────
+// ── Toast ────────────────────────────────────────────────────────────────────
 
-const Toast: React.FC<{ msg: string; type: "success" | "error"; onClose: () => void }> = ({
-  msg,
-  type,
-  onClose,
-}) => (
-  <div
-    style={{
-      position: "fixed",
-      top: "24px",
-      right: "24px",
-      zIndex: 9999,
-      display: "flex",
-      alignItems: "center",
-      gap: "12px",
-      padding: "14px 20px",
-      borderRadius: "12px",
-      background: type === "success" ? "#0f5132" : "#58151c",
-      border: `1px solid ${type === "success" ? "#1a7a48" : "#8b2132"}`,
-      color: "#fff",
-      fontFamily: "inherit",
-      fontSize: "14px",
-      fontWeight: 500,
-      boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-      maxWidth: "420px",
-      animation: "toastSlideIn 0.3s ease",
-    }}
-  >
+const Toast: React.FC<{ msg: string; type: "success" | "error"; onClose: () => void }> = ({ msg, type, onClose }) => (
+  <div style={{
+    position: "fixed", top: "24px", right: "24px", zIndex: 9999,
+    display: "flex", alignItems: "center", gap: "12px", padding: "14px 20px",
+    borderRadius: "12px", background: type === "success" ? "#0a3d30" : "#3d0a0a",
+    border: `1px solid ${type === "success" ? "#1a7a50" : "#7a2020"}`,
+    color: "#fff", fontFamily: "inherit", fontSize: "14px", fontWeight: 500,
+    boxShadow: "0 8px 32px rgba(0,0,0,0.4)", maxWidth: "420px",
+  }}>
     <span style={{ fontSize: "20px" }}>{type === "success" ? "✅" : "❌"}</span>
     <span style={{ flex: 1 }}>{msg}</span>
-    <button
-      onClick={onClose}
-      style={{
-        background: "none",
-        border: "none",
-        color: "rgba(255,255,255,0.7)",
-        cursor: "pointer",
-        fontSize: "16px",
-        padding: "0 0 0 8px",
-        lineHeight: 1,
-      }}
-    >
-      ✕
-    </button>
-    <style>{`
-      @keyframes toastSlideIn {
-        from { opacity: 0; transform: translateX(40px); }
-        to   { opacity: 1; transform: translateX(0); }
-      }
-    `}</style>
+    <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: "16px", padding: "0 0 0 8px" }}>✕</button>
   </div>
 );
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const AdminUpload: React.FC = () => {
-
-  // Upload form state
   const [files,          setFiles]          = useState<File[]>([]);
-  const [course,         setCourse]         = useState<string>("Foundation");
+  const [course,        setCourse]       = useState<string>("CSEET");
   const [subject,        setSubject]        = useState("");
   const [module,         setModule]         = useState("");
   const [chapter,        setChapter]        = useState("");
@@ -132,28 +93,21 @@ const AdminUpload: React.FC = () => {
   const [loading,        setLoading]        = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [dragOver,       setDragOver]       = useState(false);
-
-  // Toast state
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [toast,          setToast]          = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
-
   const showToast = (msg: string, type: "success" | "error" = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    setToast({ msg, type }); setTimeout(() => setToast(null), 3500);
   };
 
-  // Documents list state
   const [groupedDocs,  setGroupedDocs]  = useState<Record<string, Doc[]>>({});
   const [docsLoading,  setDocsLoading]  = useState(true);
   const [expanded,     setExpanded]     = useState<Record<string, boolean>>({});
   const [searchDocs,   setSearchDocs]   = useState("");
   const [viewMode,     setViewMode]     = useState<"tree" | "flat">("tree");
-
-  // Delete confirmation + result modal
-  const [deleteTarget,  setDeleteTarget]  = useState<Doc | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteReport,  setDeleteReport]  = useState<DeleteReport | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Doc | null>(null);
+  const [deleteLoading,setDeleteLoading]= useState(false);
+  const [deleteReport, setDeleteReport] = useState<DeleteReport | null>(null);
 
   useEffect(() => { fetchGrouped(); }, []);
 
@@ -165,24 +119,15 @@ const AdminUpload: React.FC = () => {
       const init: Record<string, boolean> = {};
       Object.keys(res.data).forEach((k) => (init[k] = true));
       setExpanded(init);
-    } catch {
-      console.error("Failed to fetch grouped docs");
-    } finally {
-      setDocsLoading(false);
-    }
+    } catch { console.error("Failed to fetch grouped docs"); }
+    finally { setDocsLoading(false); }
   };
 
-  const toggleExpand = (key: string) =>
-    setExpanded((p) => ({ ...p, [key]: !p[key] }));
-
-  // ── File handling ──────────────────────────────────────────────────────────
+  const toggleExpand = (key: string) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
 
   const handleFileDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const dropped = Array.from(e.dataTransfer.files).filter(
-      (f) => f.type === "application/pdf"
-    );
+    e.preventDefault(); setDragOver(false);
+    const dropped = Array.from(e.dataTransfer.files).filter((f) => f.type === "application/pdf");
     if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
   };
 
@@ -196,95 +141,44 @@ const AdminUpload: React.FC = () => {
   const removeFile    = (i: number) => setFiles((p) => p.filter((_, idx) => idx !== i));
   const clearAllFiles = () => { setFiles([]); if (fileRef.current) fileRef.current.value = ""; };
 
-  // ── Upload ─────────────────────────────────────────────────────────────────
-
   const handleUpload = async () => {
     if (files.length === 0) { alert("Please select at least one PDF file."); return; }
-
     setLoading(true);
-    const initialProgress: UploadProgress[] = files.map((f) => ({
-      filename: f.name,
-      status: "pending",
-      progress: 0,
-    }));
+    const initialProgress: UploadProgress[] = files.map((f) => ({ filename: f.name, status: "pending", progress: 0 }));
     setUploadProgress(initialProgress);
 
-    let successCount = 0;
-    let errorCount   = 0;
-
+    let successCount = 0, errorCount = 0;
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-
-      setUploadProgress((prev) =>
-        prev.map((p, idx) => idx === i ? { ...p, status: "uploading", progress: 50 } : p)
-      );
-
+      setUploadProgress((prev) => prev.map((p, idx) => idx === i ? { ...p, status: "uploading", progress: 50 } : p));
       const fd = new FormData();
-      fd.append("file",           file);
-      fd.append("course",         course);
-      fd.append("subject",        subject);
-      fd.append("module",         module);
-      fd.append("chapter",        chapter);
-      fd.append("unit",           unit);
-      fd.append("section",        section);
-      fd.append("custom_heading", customHeading);
-
+      fd.append("file", file); fd.append("course", course); fd.append("subject", subject);
+      fd.append("module", module); fd.append("chapter", chapter); fd.append("unit", unit);
+      fd.append("section", section); fd.append("custom_heading", customHeading);
       try {
         const res = await api.post("/admin/materials/upload_enhanced", fd);
-        setUploadProgress((prev) =>
-          prev.map((p, idx) =>
-            idx === i ? { ...p, status: "success", progress: 100, stats: res.data.statistics } : p
-          )
-        );
+        setUploadProgress((prev) => prev.map((p, idx) => idx === i ? { ...p, status: "success", progress: 100, stats: res.data.statistics } : p));
         successCount++;
       } catch (err: any) {
-        setUploadProgress((prev) =>
-          prev.map((p, idx) =>
-            idx === i
-              ? { ...p, status: "error", progress: 100, error: err.response?.data?.detail || "Upload failed" }
-              : p
-          )
-        );
+        setUploadProgress((prev) => prev.map((p, idx) => idx === i ? { ...p, status: "error", progress: 100, error: err.response?.data?.detail || "Upload failed" } : p));
         errorCount++;
       }
     }
-
     setLoading(false);
-
-    // ── Auto-clear files and show toast ──────────────────────────────────────
     if (successCount > 0 && errorCount === 0) {
-      // All succeeded
       const label = successCount === 1 ? "1 file uploaded" : `${successCount} files uploaded`;
-      showToast(`✔ ${label} successfully! The document list has been refreshed.`, "success");
-      // Clear the selected files and progress after a short delay so user
-      // can briefly see the green ticks before the list resets.
-      setTimeout(() => {
-        setFiles([]);
-        setUploadProgress([]);
-        if (fileRef.current) fileRef.current.value = "";
-      }, 1500);
-    } else if (successCount > 0 && errorCount > 0) {
-      // Partial success
-      showToast(
-        `⚠ ${successCount} file(s) uploaded, ${errorCount} failed. Check errors above.`,
-        "error"
-      );
+      showToast(`✔ ${label} successfully!`, "success");
+      setTimeout(() => { setFiles([]); setUploadProgress([]); if (fileRef.current) fileRef.current.value = ""; }, 1500);
+    } else if (successCount > 0) {
+      showToast(`⚠ ${successCount} file(s) uploaded, ${errorCount} failed.`, "error");
     } else {
-      // All failed
-      showToast(`Upload failed for all ${errorCount} file(s). Please try again.`, "error");
+      showToast(`Upload failed for all ${errorCount} file(s).`, "error");
     }
-
-    // Always refresh the docs list
     fetchGrouped();
   };
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
-
-  const confirmDelete = (doc: Doc) => {
-    setDeleteTarget(doc);
-    setDeleteReport(null);
-  };
-
+  const confirmDelete  = (doc: Doc) => { setDeleteTarget(doc); setDeleteReport(null); };
+  const closeDeleteModal = () => { setDeleteTarget(null); setDeleteReport(null); };
   const executeDelete = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
@@ -292,60 +186,33 @@ const AdminUpload: React.FC = () => {
       const res = await api.delete(`/admin/materials/${deleteTarget._id}`);
       setDeleteReport(res.data.report as DeleteReport);
       fetchGrouped();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || "Delete failed. Please try again.");
-    } finally {
-      setDeleteLoading(false);
-    }
+    } catch (err: any) { alert(err.response?.data?.detail || "Delete failed."); }
+    finally { setDeleteLoading(false); }
   };
-
-  const closeDeleteModal = () => {
-    setDeleteTarget(null);
-    setDeleteReport(null);
-  };
-
-  // ── Stats ──────────────────────────────────────────────────────────────────
 
   const totalDocs = Object.values(groupedDocs).reduce((a, d) => a + d.length, 0);
-  const s3Count   = Object.values(groupedDocs).flat()
-    .filter((d) => d.storage_backend === "s3").length;
-
-  // ── Filter ─────────────────────────────────────────────────────────────────
+  const s3Count   = Object.values(groupedDocs).flat().filter((d) => d.storage_backend === "s3").length;
 
   const filteredGroups = Object.entries(groupedDocs).filter(([key, docs]) => {
     if (!searchDocs.trim()) return true;
     const q = searchDocs.toLowerCase();
-    return (
-      key.toLowerCase().includes(q) ||
-      docs.some(
-        (d) =>
-          d.filename.toLowerCase().includes(q) ||
-          d.chapter?.toLowerCase().includes(q)  ||
-          d.subject?.toLowerCase().includes(q)
-      )
-    );
+    return key.toLowerCase().includes(q) || docs.some((d) => d.filename.toLowerCase().includes(q) || d.chapter?.toLowerCase().includes(q) || d.subject?.toLowerCase().includes(q));
   });
-
-  // ── Build subject → chapter tree per level ─────────────────────────────────
 
   const buildSubjectTree = (docs: Doc[]) => {
     const tree: Record<string, Record<string, Doc[]>> = {};
     docs.forEach((doc) => {
       const subj = doc.subject || "General";
       const chap = doc.chapter || doc.filename.replace(".pdf", "");
-      (tree[subj]        = tree[subj]        || {})[chap] =
-      (tree[subj][chap]  = tree[subj][chap]  || []);
+      (tree[subj] = tree[subj] || {})[chap] = (tree[subj][chap] = tree[subj][chap] || []);
       tree[subj][chap].push(doc);
     });
     return tree;
   };
 
-  // ── Shared doc-item renderer ───────────────────────────────────────────────
-
   const DocItem = ({ doc }: { doc: Doc }) => {
     const sb    = doc.storage_backend || "local";
     const badge = STORAGE_BADGE[sb] || STORAGE_BADGE.local;
-
     return (
       <div className="doc-item">
         <div className="doc-item-left">
@@ -353,175 +220,93 @@ const AdminUpload: React.FC = () => {
           <div className="doc-item-info">
             <span className="doc-item-name">{doc.filename}</span>
             <div className="doc-item-meta">
-              {doc.subject        && <span className="doc-meta-tag">📘 {doc.subject}</span>}
+              {doc.subject        && <span className="doc-meta-tag">📋 {doc.subject}</span>}
               {doc.chapter        && <span className="doc-meta-tag">📑 {doc.chapter}</span>}
               {doc.unit           && <span className="doc-meta-tag">📎 {doc.unit}</span>}
-              {doc.total_vectors != null && (
-                <span className="doc-meta-tag doc-meta-vectors">🧠 {doc.total_vectors} vectors</span>
-              )}
+              {doc.total_vectors != null && <span className="doc-meta-tag doc-meta-vectors">🧠 {doc.total_vectors} vectors</span>}
               <span className={`doc-meta-tag doc-storage-badge ${badge.cls}`}>{badge.label}</span>
             </div>
           </div>
         </div>
         <div className="doc-item-right">
           {doc.pdf_url && (
-            <a href={doc.pdf_url} target="_blank" rel="noreferrer" className="doc-view-btn" title="View PDF">
-              👁
-            </a>
+            <a href={doc.pdf_url} target="_blank" rel="noreferrer" className="doc-view-btn" title="View PDF">👁</a>
           )}
           <span className="doc-item-date">
-            {new Date(doc.uploaded_at).toLocaleDateString("en-IN", {
-              day: "numeric", month: "short", year: "numeric",
-            })}
+            {new Date(doc.uploaded_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
           </span>
-          <button
-            className="doc-delete-btn"
-            onClick={() => confirmDelete(doc)}
-            title="Delete from S3, Pinecone & MongoDB"
-          >
-            🗑
-          </button>
+          <button className="doc-delete-btn" onClick={() => confirmDelete(doc)} title="Delete">🗑</button>
         </div>
       </div>
     );
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <div className="admin-upload-page">
 
-      {/* ── TOAST ── */}
-      {toast && (
-        <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />
-      )}
+      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* ── DELETE CONFIRMATION / REPORT MODAL ── */}
+      {/* Delete Modal */}
       {deleteTarget && (
         <div className="delete-modal-overlay" onClick={closeDeleteModal}>
           <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
-
-            {/* Header */}
             <div className="delete-modal-header">
               <span className="delete-modal-icon">🗑</span>
               <h3>Delete Document</h3>
               <button className="delete-modal-close" onClick={closeDeleteModal}>✕</button>
             </div>
-
             {!deleteReport ? (
-              /* ── Confirmation panel ── */
               <>
                 <div className="delete-modal-body">
                   <p>You are about to permanently delete:</p>
                   <div className="delete-modal-filename">📄 {deleteTarget.filename}</div>
-
-                  <div className="delete-modal-warning">
-                    ⚠️ This will remove the file from <strong>all three</strong> systems:
-                  </div>
-
+                  <div className="delete-modal-warning">⚠️ This will remove the file from <strong>all three</strong> systems:</div>
                   <ul className="delete-modal-list">
-                    <li>
-                      <span className="delete-check">☁</span>
-                      <span>
-                        <strong>AWS S3</strong> — the PDF file itself
-                        {deleteTarget.storage_backend === "local" && (
-                          <em className="delete-note"> (stored locally on server)</em>
-                        )}
-                      </span>
-                    </li>
-                    <li>
-                      <span className="delete-check">🧠</span>
-                      <strong>Pinecone</strong> — all {deleteTarget.total_vectors ?? "?"} embedding vectors
-                    </li>
-                    <li>
-                      <span className="delete-check">🗄</span>
-                      <strong>MongoDB</strong> — document record + Study Hub entries
-                    </li>
+                    <li><span className="delete-check">☁</span><span><strong>AWS S3</strong> — the PDF file itself</span></li>
+                    <li><span className="delete-check">🧠</span><strong>Pinecone</strong> — all {deleteTarget.total_vectors ?? "?"} embedding vectors</li>
+                    <li><span className="delete-check">🗄</span><strong>MongoDB</strong> — document record + Study Hub entries</li>
                   </ul>
-
                   <p className="delete-modal-irreversible">This action cannot be undone.</p>
                 </div>
-
                 <div className="delete-modal-actions">
-                  <button className="delete-cancel-btn" onClick={closeDeleteModal} disabled={deleteLoading}>
-                    Cancel
-                  </button>
+                  <button className="delete-cancel-btn" onClick={closeDeleteModal} disabled={deleteLoading}>Cancel</button>
                   <button className="delete-confirm-btn" onClick={executeDelete} disabled={deleteLoading}>
-                    {deleteLoading ? (
-                      <><span className="auth-spinner" /> Deleting…</>
-                    ) : (
-                      "Delete Permanently"
-                    )}
+                    {deleteLoading ? <><span className="auth-spinner" /> Deleting…</> : "Delete Permanently"}
                   </button>
                 </div>
               </>
             ) : (
-              /* ── Deletion report panel ── */
               <>
                 <div className="delete-modal-body">
                   <div className="delete-report-title">
-                    {deleteReport.errors.length === 0
-                      ? "✅ Deletion complete"
-                      : "⚠️ Deletion completed with warnings"}
+                    {deleteReport.errors.length === 0 ? "✅ Deletion complete" : "⚠️ Deletion completed with warnings"}
                   </div>
-                  <div className="delete-report-filename">📄 {deleteReport.filename}</div>
-
                   <div className="delete-report-grid">
                     <div className={`delete-report-item ${deleteReport.pinecone_deleted > 0 ? "report-ok" : "report-warn"}`}>
                       <span className="report-icon">🧠</span>
-                      <div>
-                        <div className="report-label">Pinecone Vectors</div>
-                        <div className="report-value">{deleteReport.pinecone_deleted} deleted</div>
-                      </div>
+                      <div><div className="report-label">Pinecone Vectors</div><div className="report-value">{deleteReport.pinecone_deleted} deleted</div></div>
                     </div>
-
                     <div className={`delete-report-item ${deleteReport.s3_deleted || deleteReport.local_deleted ? "report-ok" : "report-warn"}`}>
                       <span className="report-icon">☁</span>
-                      <div>
-                        <div className="report-label">File Storage</div>
-                        <div className="report-value">
-                          {deleteReport.s3_deleted
-                            ? "Removed from S3"
-                            : deleteReport.local_deleted
-                            ? "Removed locally"
-                            : "Not found / skipped"}
-                        </div>
-                      </div>
+                      <div><div className="report-label">File Storage</div><div className="report-value">{deleteReport.s3_deleted ? "Removed from S3" : deleteReport.local_deleted ? "Removed locally" : "Not found"}</div></div>
                     </div>
-
                     <div className={`delete-report-item ${deleteReport.mongo_docs ? "report-ok" : "report-error"}`}>
                       <span className="report-icon">🗄</span>
-                      <div>
-                        <div className="report-label">MongoDB Documents</div>
-                        <div className="report-value">
-                          {deleteReport.mongo_docs ? "Record removed" : "Not found"}
-                        </div>
-                      </div>
+                      <div><div className="report-label">MongoDB Documents</div><div className="report-value">{deleteReport.mongo_docs ? "Record removed" : "Not found"}</div></div>
                     </div>
-
                     <div className={`delete-report-item ${deleteReport.mongo_dashboard > 0 ? "report-ok" : "report-warn"}`}>
                       <span className="report-icon">📚</span>
-                      <div>
-                        <div className="report-label">Study Hub Entries</div>
-                        <div className="report-value">{deleteReport.mongo_dashboard} removed</div>
-                      </div>
+                      <div><div className="report-label">Study Hub Entries</div><div className="report-value">{deleteReport.mongo_dashboard} removed</div></div>
                     </div>
                   </div>
-
                   {deleteReport.errors.length > 0 && (
-                    <div className="delete-report-errors">
-                      <div className="delete-report-errors-title">⚠ Warnings / Errors</div>
-                      {deleteReport.errors.map((e, i) => (
-                        <div key={i} className="delete-report-error-item">• {e}</div>
-                      ))}
+                    <div style={{ background: "var(--error-bg)", border: "1.5px solid #fecaca", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
+                      {deleteReport.errors.map((e, i) => <div key={i} style={{ fontSize: "0.78rem", color: "#7f1d1d" }}>• {e}</div>)}
                     </div>
                   )}
                 </div>
-
                 <div className="delete-modal-actions">
-                  <button className="delete-cancel-btn" onClick={closeDeleteModal}>
-                    Close
-                  </button>
+                  <button className="delete-cancel-btn" onClick={closeDeleteModal}>Close</button>
                 </div>
               </>
             )}
@@ -529,12 +314,12 @@ const AdminUpload: React.FC = () => {
         </div>
       )}
 
-      {/* ── PAGE HEADER ── */}
+      {/* Page Header */}
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Upload Study Materials</h1>
           <p className="admin-page-subtitle">
-            Add PDFs to the CA knowledge base — indexed for AI search and visible in Study Hub instantly.
+            Add PDFs to the CS knowledge base — indexed for AI search and visible in Study Hub instantly.
           </p>
         </div>
         <div className="admin-header-stats">
@@ -553,19 +338,16 @@ const AdminUpload: React.FC = () => {
         </div>
       </div>
 
-      {/* ── UPLOAD SECTION ── */}
+      {/* Upload Section */}
       <div className="upload-section-grid">
 
-        {/* Left — drop zone */}
+        {/* Drop zone */}
         <div className="upload-card">
           <div className="upload-card-title">
             <span className="upload-card-icon">📤</span>
             Select PDF Files
-            {files.length > 0 && (
-              <button className="clear-files-btn" onClick={clearAllFiles}>Clear all</button>
-            )}
+            {files.length > 0 && <button className="clear-files-btn" onClick={clearAllFiles}>Clear all</button>}
           </div>
-
           <div
             className={`drop-zone${dragOver ? " drop-zone-over" : ""}`}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -590,39 +372,29 @@ const AdminUpload: React.FC = () => {
                     <button className="file-item-remove" onClick={(e) => { e.stopPropagation(); removeFile(i); }}>✕</button>
                   </div>
                 ))}
-                <div className="drop-zone-add-more" onClick={() => fileRef.current?.click()}>
-                  + Add more PDFs
-                </div>
+                <div className="drop-zone-add-more" onClick={() => fileRef.current?.click()}>+ Add more PDFs</div>
               </div>
             )}
           </div>
-
-          {/* Storage info banner */}
           <div className="storage-info-banner">
             <span className="storage-info-icon">☁</span>
-            <span className="storage-info-text">
-              PDFs will be stored on <strong>AWS S3</strong> (if configured) and also
-              indexed in Pinecone for AI search.
-            </span>
+            <span>PDFs will be stored on <strong>AWS S3</strong> (if configured) and indexed in Pinecone for AI search.</span>
           </div>
         </div>
 
-        {/* Right — metadata form */}
+        {/* Metadata form */}
         <div className="upload-card">
           <div className="upload-card-title">
             <span className="upload-card-icon">🏷️</span>
             Metadata
           </div>
 
-          {/* Level tabs */}
-          <div className="course-tab-group" role="group" aria-label="Select level">
+          {/* CS Level tabs */}
+          <div className="course-tab-group" role="group" aria-label="Select CS level">
             {COURSES.map((c) => (
-              <button
-                key={c}
-                type="button"
+              <button key={c} type="button"
                 className={`course-tab${course === c ? " course-tab-active" : ""}`}
-                onClick={() => setCourse(c)}
-              >
+                onClick={() => setCourse(c)}>
                 {LEVEL_ICONS[c] || "📁"} {c}
               </button>
             ))}
@@ -631,11 +403,8 @@ const AdminUpload: React.FC = () => {
           <div className="upload-fields">
             <div className="upload-fields-row">
               <div className="upload-field">
-                <label className="upload-label">
-                  Subject <span className="upload-label-req">*</span>
-                  <span className="upload-label-opt"> — for tree grouping</span>
-                </label>
-                <input className="upload-input" placeholder="e.g. Accounting, Tax, Audit"
+                <label className="upload-label">Subject <span className="upload-label-req">*</span><span className="upload-label-opt"> — for tree grouping</span></label>
+                <input className="upload-input" placeholder="e.g. Company Law, Governance, IBC"
                   value={subject} onChange={(e) => setSubject(e.target.value)} />
               </div>
               <div className="upload-field">
@@ -644,11 +413,10 @@ const AdminUpload: React.FC = () => {
                   value={module} onChange={(e) => setModule(e.target.value)} />
               </div>
             </div>
-
             <div className="upload-fields-row">
               <div className="upload-field">
                 <label className="upload-label">Chapter <span className="upload-label-opt">(uses filename if blank)</span></label>
-                <input className="upload-input" placeholder="e.g. Chapter 5: Depreciation"
+                <input className="upload-input" placeholder="e.g. Chapter 5: Board Meetings"
                   value={chapter} onChange={(e) => setChapter(e.target.value)} />
               </div>
               <div className="upload-field">
@@ -657,15 +425,13 @@ const AdminUpload: React.FC = () => {
                   value={unit} onChange={(e) => setUnit(e.target.value)} />
               </div>
             </div>
-
             <div className="upload-field">
               <label className="upload-label">Section / Extra Tag <span className="upload-label-opt">(optional)</span></label>
-              <input className="upload-input" placeholder="e.g. AS 9 – Revenue Recognition"
+              <input className="upload-input" placeholder="e.g. SS-1 – Secretarial Standard on Board Meetings"
                 value={section} onChange={(e) => setSection(e.target.value)} />
             </div>
           </div>
 
-          {/* Upload Progress */}
           {uploadProgress.length > 0 && (
             <div className="upload-progress-section">
               <div className="upload-progress-title">Upload Progress</div>
@@ -681,63 +447,41 @@ const AdminUpload: React.FC = () => {
                     </span>
                     {p.stats && (
                       <span className="upload-progress-stats">
-                        {p.stats.total_vectors} vectors
-                        {p.stats.storage_backend === "s3" && " · ☁ S3"}
+                        {p.stats.total_vectors} vectors{p.stats.storage_backend === "s3" && " · ☁ S3"}
                       </span>
                     )}
                   </div>
                   {p.error && <div className="upload-progress-error">{p.error}</div>}
-                  {p.stats && (
-                    <div className="upload-progress-details">
-                      Text: {p.stats.text_chunks} · Tables: {p.stats.table_chunks}
-                    </div>
-                  )}
+                  {p.stats && <div className="upload-progress-details">Text: {p.stats.text_chunks} · Tables: {p.stats.table_chunks}</div>}
                 </div>
               ))}
             </div>
           )}
 
-          <button
-            className="upload-submit-btn"
-            onClick={handleUpload}
-            disabled={loading || files.length === 0}
-          >
+          <button className="upload-submit-btn" onClick={handleUpload} disabled={loading || files.length === 0}>
             {loading
               ? <><span className="auth-spinner" /> Uploading {files.length} file{files.length > 1 ? "s" : ""}…</>
-              : `Upload ${files.length > 0 ? files.length : ""} PDF${files.length > 1 ? "s" : ""} →`
-            }
+              : `Upload ${files.length > 0 ? files.length : ""} PDF${files.length > 1 ? "s" : ""} →`}
           </button>
         </div>
       </div>
 
-      {/* ── UPLOADED DOCUMENTS ── */}
+      {/* Uploaded Documents */}
       <div className="docs-section">
         <div className="docs-section-header">
           <h2 className="docs-section-title">
             <span>📚</span> Uploaded Materials
             <span className="docs-total-badge">{totalDocs}</span>
           </h2>
-
           <div className="docs-controls">
             <div className="view-toggle">
-              <button
-                className={`view-toggle-btn${viewMode === "tree" ? " view-toggle-active" : ""}`}
-                onClick={() => setViewMode("tree")}
-              >🌳 Tree</button>
-              <button
-                className={`view-toggle-btn${viewMode === "flat" ? " view-toggle-active" : ""}`}
-                onClick={() => setViewMode("flat")}
-              >📋 List</button>
+              <button className={`view-toggle-btn${viewMode === "tree" ? " view-toggle-active" : ""}`} onClick={() => setViewMode("tree")}>🌳 Tree</button>
+              <button className={`view-toggle-btn${viewMode === "flat" ? " view-toggle-active" : ""}`} onClick={() => setViewMode("flat")}>📋 List</button>
             </div>
-
             <div className="docs-search-wrap">
               <span className="docs-search-icon">🔍</span>
-              <input
-                className="docs-search-input"
-                placeholder="Search by name, subject, chapter…"
-                value={searchDocs}
-                onChange={(e) => setSearchDocs(e.target.value)}
-              />
+              <input className="docs-search-input" placeholder="Search by name, subject, chapter…"
+                value={searchDocs} onChange={(e) => setSearchDocs(e.target.value)} />
             </div>
           </div>
         </div>
@@ -752,28 +496,17 @@ const AdminUpload: React.FC = () => {
             <p>{searchDocs ? "No documents match your search." : "No materials uploaded yet."}</p>
           </div>
         ) : viewMode === "tree" ? (
-
-          /* ── TREE VIEW ── */
           <div className="docs-accordion">
             {filteredGroups.map(([levelKey, docs]) => {
               const filteredDocs = searchDocs
-                ? docs.filter((d) =>
-                    d.filename.toLowerCase().includes(searchDocs.toLowerCase()) ||
-                    d.chapter?.toLowerCase().includes(searchDocs.toLowerCase())  ||
-                    d.subject?.toLowerCase().includes(searchDocs.toLowerCase())
-                  )
+                ? docs.filter((d) => d.filename.toLowerCase().includes(searchDocs.toLowerCase()) || d.chapter?.toLowerCase().includes(searchDocs.toLowerCase()) || d.subject?.toLowerCase().includes(searchDocs.toLowerCase()))
                 : docs;
               if (filteredDocs.length === 0) return null;
-
               const subjectTree = buildSubjectTree(filteredDocs);
               const lvlKey = `lvl-${levelKey}`;
-
               return (
                 <div key={levelKey} className="docs-group docs-group-level">
-                  <button
-                    className="docs-group-header docs-level-header"
-                    onClick={() => toggleExpand(lvlKey)}
-                  >
+                  <button className="docs-group-header docs-level-header" onClick={() => toggleExpand(lvlKey)}>
                     <div className="docs-group-left">
                       <span className="docs-group-arrow">{expanded[lvlKey] !== false ? "▾" : "▸"}</span>
                       <span className="docs-level-icon">{LEVEL_ICONS[levelKey] || "📁"}</span>
@@ -781,7 +514,6 @@ const AdminUpload: React.FC = () => {
                     </div>
                     <span className="docs-group-badge">{filteredDocs.length} files</span>
                   </button>
-
                   {expanded[lvlKey] !== false && (
                     <div className="docs-level-body">
                       {Object.entries(subjectTree).map(([subj, chapters]) => {
@@ -790,13 +522,10 @@ const AdminUpload: React.FC = () => {
                           <div key={subj} className="docs-subject-block">
                             <button className="docs-subject-header" onClick={() => toggleExpand(subjKey)}>
                               <span className="docs-group-arrow">{expanded[subjKey] !== false ? "▾" : "▸"}</span>
-                              <span className="docs-subject-icon">📘</span>
+                              <span className="docs-subject-icon">📋</span>
                               <span className="docs-subject-name">{subj}</span>
-                              <span className="docs-subject-count">
-                                {Object.values(chapters).flat().length} files
-                              </span>
+                              <span className="docs-subject-count">{Object.values(chapters).flat().length} files</span>
                             </button>
-
                             {expanded[subjKey] !== false && (
                               <div className="docs-chapters-list">
                                 {Object.entries(chapters).map(([chap, chapDocs]) => {
@@ -809,7 +538,6 @@ const AdminUpload: React.FC = () => {
                                         <span className="docs-chapter-name">{chap}</span>
                                         <span className="docs-chapter-count">{chapDocs.length}</span>
                                       </button>
-
                                       {expanded[chapKey] !== false && (
                                         <div className="docs-group-items">
                                           {chapDocs.map((doc) => <DocItem key={doc._id} doc={doc} />)}
@@ -829,20 +557,13 @@ const AdminUpload: React.FC = () => {
               );
             })}
           </div>
-
         ) : (
-
-          /* ── FLAT LIST VIEW ── */
           <div className="docs-accordion">
             {filteredGroups.map(([key, docs]) => {
               const filteredDocs = searchDocs
-                ? docs.filter((d) =>
-                    d.filename.toLowerCase().includes(searchDocs.toLowerCase()) ||
-                    d.chapter?.toLowerCase().includes(searchDocs.toLowerCase())
-                  )
+                ? docs.filter((d) => d.filename.toLowerCase().includes(searchDocs.toLowerCase()) || d.chapter?.toLowerCase().includes(searchDocs.toLowerCase()))
                 : docs;
               if (filteredDocs.length === 0) return null;
-
               return (
                 <div key={key} className="docs-group">
                   <button className="docs-group-header" onClick={() => toggleExpand(key)}>
