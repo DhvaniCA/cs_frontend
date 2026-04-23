@@ -7,19 +7,19 @@ type Student = {
   name?: string;
   email?: string;
   phone?: string;
-  ca_level?: string;
-  ca_attempt?: number;
+  cs_level?: string;      // ← CS levels: CSEET | Executive | Professional
+  cs_attempt?: string;
   status?: string;
-  plan?: string;               // "free" | "paid"
+  plan?: string;
   subscription_status?: string;
   payment_id?: string;
   plan_activated_at?: string;
 };
 
 const LEVEL_COLOR: Record<string, { bg: string; color: string }> = {
-  Foundation:   { bg: "var(--success-bg)",  color: "var(--success)"  },
-  Intermediate: { bg: "var(--warning-bg)",  color: "var(--warning)"  },
-  Final:        { bg: "#e8eaf6",            color: "#3730a3"          },
+  CSEET:   { bg: "var(--success-bg)",  color: "var(--success)"  },
+  Executive:    { bg: "var(--warning-bg)",  color: "var(--warning)"  },
+  Professional: { bg: "#eef2ff",            color: "#4338ca"          },
   default:      { bg: "var(--surface-2)",   color: "var(--text-muted)"},
 };
 
@@ -72,12 +72,12 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  /* ── Filter helpers ── */
-  const allLevels = ["All", ...Array.from(new Set(students.map((s) => s.ca_level).filter(Boolean)))];
+  // Filter using cs_level field
+  const allLevels = ["All", ...Array.from(new Set(students.map((s) => s.cs_level).filter(Boolean) as string[]))];
 
   const applyFilters = (list: Student[]) => {
     let result = list;
-    if (filterLevel !== "All") result = result.filter((s) => s.ca_level === filterLevel);
+    if (filterLevel !== "All") result = result.filter((s) => s.cs_level === filterLevel);
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -98,7 +98,6 @@ const AdminDashboard: React.FC = () => {
   const totalPaid     = students.filter((s) => s.plan === "paid").length;
   const totalFree     = students.filter((s) => s.plan !== "paid").length;
 
-  /* ── Loading ── */
   if (loading) {
     return (
       <div className="admin-loading">
@@ -113,7 +112,7 @@ const AdminDashboard: React.FC = () => {
   return (
     <div className="adm-page">
 
-      {/* ── Toast ── */}
+      {/* Toast */}
       {toast && (
         <div className={`adm-toast adm-toast-${toast.type}`} role="alert">
           <span>{toast.type === "success" ? "✅" : "⚠"}</span>
@@ -121,18 +120,16 @@ const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* ── PAGE HEADER ── */}
+      {/* Header */}
       <div className="adm-header">
         <div className="adm-header-left">
           <h1 className="adm-title">Admin Control Centre</h1>
-          <p className="adm-subtitle">Manage student registrations and platform access</p>
+          <p className="adm-subtitle">Manage CS student registrations and platform access</p>
         </div>
-        <button className="adm-refresh-btn" onClick={fetchStudents} title="Refresh">
-          🔄 Refresh
-        </button>
+        <button className="adm-refresh-btn" onClick={fetchStudents} title="Refresh">🔄 Refresh</button>
       </div>
 
-      {/* ── STAT CARDS ── */}
+      {/* Stats */}
       <div className="adm-stats">
         <div className="adm-stat-card adm-stat-total">
           <div className="adm-stat-icon">👥</div>
@@ -165,10 +162,10 @@ const AdminDashboard: React.FC = () => {
             <div className="adm-stat-label">Approval Rate</div>
           </div>
         </div>
-        <div className="adm-stat-card" style={{ borderTop: "3px solid #c9a84c" }}>
+        <div className="adm-stat-card" style={{ borderTop: "3px solid var(--accent)" }}>
           <div className="adm-stat-icon">✨</div>
           <div className="adm-stat-body">
-            <div className="adm-stat-num" style={{ color: "#92701a" }}>{totalPaid}</div>
+            <div className="adm-stat-num" style={{ color: "var(--warning)" }}>{totalPaid}</div>
             <div className="adm-stat-label">Premium Students</div>
           </div>
         </div>
@@ -181,9 +178,8 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* ── CONTROLS ── */}
+      {/* Controls */}
       <div className="adm-controls">
-        {/* Search */}
         <div className="adm-search-wrap">
           <span className="adm-search-icon">🔍</span>
           <input
@@ -198,9 +194,7 @@ const AdminDashboard: React.FC = () => {
             <button className="adm-search-clear" onClick={() => setSearch("")} aria-label="Clear search">✕</button>
           )}
         </div>
-
-        {/* Level filter pills */}
-        <div className="adm-filter-pills" role="group" aria-label="Filter by level">
+        <div className="adm-filter-pills" role="group" aria-label="Filter by CS level">
           {allLevels.map((lvl) => (
             <button
               key={lvl}
@@ -213,29 +207,23 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* ── TABS ── */}
+      {/* Tabs */}
       <div className="adm-tabs" role="tablist">
-        <button
-          role="tab"
-          aria-selected={activeTab === "pending"}
+        <button role="tab" aria-selected={activeTab === "pending"}
           className={`adm-tab${activeTab === "pending" ? " adm-tab-active" : ""}`}
-          onClick={() => setActiveTab("pending")}
-        >
+          onClick={() => setActiveTab("pending")}>
           Pending
           {totalPending > 0 && <span className="adm-tab-badge adm-tab-badge-pending">{totalPending}</span>}
         </button>
-        <button
-          role="tab"
-          aria-selected={activeTab === "approved"}
+        <button role="tab" aria-selected={activeTab === "approved"}
           className={`adm-tab${activeTab === "approved" ? " adm-tab-active" : ""}`}
-          onClick={() => setActiveTab("approved")}
-        >
+          onClick={() => setActiveTab("approved")}>
           Approved
           <span className="adm-tab-badge">{totalApproved}</span>
         </button>
       </div>
 
-      {/* ── STUDENT LIST ── */}
+      {/* Student list */}
       <div role="tabpanel">
         {currentList.length === 0 ? (
           <div className="adm-empty">
@@ -270,30 +258,20 @@ const AdminDashboard: React.FC = () => {
 
             <div className="adm-student-grid">
               {currentList.map((student) => {
-                const lvlStyle = getLevelStyle(student.ca_level);
-                const isPending = student.status === "pending";
+                const lvlStyle   = getLevelStyle(student.cs_level);
+                const isPending  = student.status === "pending";
                 const isActioning = actionLoading === student._id;
 
                 return (
-                  <div
-                    key={student._id}
-                    className={`adm-student-card${!isPending ? " adm-student-card-approved" : ""}`}
-                  >
-                    {/* Card top strip */}
+                  <div key={student._id} className={`adm-student-card${!isPending ? " adm-student-card-approved" : ""}`}>
                     <div className="adm-card-strip" />
-
                     <div className="adm-card-body">
-                      {/* Avatar + name */}
                       <div className="adm-card-top">
-                        <div className="adm-avatar">
-                          {getInitials(student.name)}
-                        </div>
+                        <div className="adm-avatar">{getInitials(student.name)}</div>
                         <div className="adm-card-identity">
                           <h3 className="adm-student-name">{student.name || "Unnamed Student"}</h3>
                           <p className="adm-student-email" title={student.email}>{student.email}</p>
-                          {student.phone && (
-                            <p className="adm-student-phone">📞 {student.phone}</p>
-                          )}
+                          {student.phone && <p className="adm-student-phone">📞 {student.phone}</p>}
                         </div>
                         <span
                           className="adm-status-badge"
@@ -306,19 +284,19 @@ const AdminDashboard: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Details row */}
                       <div className="adm-card-details">
+                        {/* CS level chip */}
                         <div className="adm-detail-chip" style={{ background: lvlStyle.bg, color: lvlStyle.color }}>
-                          🎓 {student.ca_level || "—"}
+                          🎓 {student.cs_level || "—"}
                         </div>
                         <div className="adm-detail-chip">
-                          🔁 Attempt {student.ca_attempt ?? "—"}
+                          🗓 {student.cs_attempt || "—"}
                         </div>
                         <div
                           className="adm-detail-chip"
                           style={
                             student.plan === "paid"
-                              ? { background: "rgba(201,168,76,0.15)", color: "#92701a", border: "1px solid rgba(201,168,76,0.4)", fontWeight: 700 }
+                              ? { background: "rgba(212,136,42,0.15)", color: "var(--warning)", border: "1px solid rgba(212,136,42,0.4)", fontWeight: 700 }
                               : { background: "var(--surface-2)", color: "var(--text-muted)" }
                           }
                         >
@@ -326,28 +304,19 @@ const AdminDashboard: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Action */}
-                      {isPending && (
+                      {isPending ? (
                         <div className="adm-card-action">
                           <button
                             className="adm-approve-btn"
                             disabled={isActioning}
                             onClick={() => approveStudent(student._id)}
                           >
-                            {isActioning ? (
-                              <><span className="auth-spinner" /> Approving…</>
-                            ) : (
-                              <> ✓ Approve Student</>
-                            )}
+                            {isActioning ? <><span className="auth-spinner" /> Approving…</> : " ✓ Approve Student"}
                           </button>
                         </div>
-                      )}
-
-                      {!isPending && (
+                      ) : (
                         <div className="adm-card-action">
-                          <div className="adm-approved-stamp">
-                            ✅ Access Granted
-                          </div>
+                          <div className="adm-approved-stamp">✅ Access Granted</div>
                         </div>
                       )}
                     </div>
@@ -358,7 +327,6 @@ const AdminDashboard: React.FC = () => {
           </>
         )}
       </div>
-
     </div>
   );
 };
