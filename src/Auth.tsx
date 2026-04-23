@@ -6,7 +6,7 @@ interface Props {
   onLoggedIn: (role: "student" | "admin") => void;
 }
 
-const CS_LEVELS = ["Foundation", "Executive", "Professional"] as const;
+const CS_LEVELS = ["CSEET", "Executive", "Professional"] as const;
 type CSLevel = typeof CS_LEVELS[number];
 
 declare global {
@@ -14,14 +14,14 @@ declare global {
 }
 
 const PLAN_PRICES: Record<CSLevel, number> = {
-  Foundation:   499,
+  CSEET:   499,
   Executive:    599,
   Professional: 699,
 };
 
 const PLAN_FEATURES: Record<CSLevel, string[]> = {
-  Foundation: [
-    "All Foundation study materials",
+  CSEET: [
+    "All CSEET study materials",
     "AI Tutor – unlimited questions",
     "ICSI syllabus PDFs",
     "Company Law basics covered",
@@ -47,9 +47,9 @@ const PLAN_FEATURES: Record<CSLevel, string[]> = {
 };
 
 const ATTEMPT_MONTHS: Record<CSLevel, string[]> = {
-  Foundation:   ["January", "June"],
-  Executive:    ["January", "June"],
-  Professional: ["January", "June"],
+  CSEET:        ["February", "June", "October"],
+  Executive:    ["June", "December"],
+  Professional: ["June", "December"],
 };
 
 const FREE_FEATURES = [
@@ -377,6 +377,7 @@ const Auth: React.FC<Props> = ({ onLoggedIn }) => {
                     {csLevel && (
                       <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
                         {csLevel} exams: {ATTEMPT_MONTHS[csLevel as CSLevel].join(", ")} each year
+                        {csLevel === "CSEET" && " (3 attempts per year)"}
                       </p>
                     )}
                   </div>
