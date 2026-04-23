@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import api from "./api";
 import "./App.css";
 
-type Level = "Foundation" | "Executive" | "Professional" | "Others";
+type Level = "CSEET" | "Executive" | "Professional" | "Others";
 
 // External video service base URL
 const VIDEO_API_BASE = (import.meta as any).env?.VITE_VIDEO_API_URL ?? "http://127.0.0.1:8081";
@@ -11,7 +11,7 @@ const POLL_TIMEOUT_MS  = 15 * 60 * 1000;
 
 // CS level metadata — different from CA
 const LEVEL_META: Record<Level, { icon: string; desc: string; color: string }> = {
-  Foundation:   { icon: "🌱", desc: "Core concepts & Company Law basics", color: "#0a7248" },
+  CSEET:   { icon: "🌱", desc: "Core concepts & Company Law basics", color: "#0a7248" },
   Executive:    { icon: "⚖️", desc: "Corporate Governance & Securities Law", color: "#a05b0a" },
   Professional: { icon: "🏛️", desc: "Advanced Law & Practice",              color: "#0f3d38" },
   Others:       { icon: "📁", desc: "Reference & supplementary",            color: "#5b21b6" },
@@ -351,7 +351,7 @@ const CSDashboard: React.FC = () => {
             </div>
           ) : (
             <div className="level-cards-grid">
-              {(["Foundation", "Executive", "Professional", "Others"] as Level[]).map((lvl) => {
+              {(["CSEET", "Executive", "Professional", "Others"] as Level[]).map((lvl) => {
                 const meta         = LEVEL_META[lvl];
                 const subjectCount = tree[lvl] ? Object.keys(tree[lvl]).length : 0;
                 const pdfCount     = countLevelPdfs(lvl);
@@ -377,7 +377,7 @@ const CSDashboard: React.FC = () => {
 
           {!treeLoading && (
             <div className="dashboard-stats">
-              {(["Foundation", "Executive", "Professional", "Others"] as Level[]).map((lvl) => {
+              {(["CSEET", "Executive", "Professional", "Others"] as Level[]).map((lvl) => {
                 const pdfCount = countLevelPdfs(lvl);
                 if (!pdfCount) return null;
                 return (
