@@ -92,7 +92,9 @@ async function pollJob(
 
   while (Date.now() < deadline) {
 
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    await new Promise((r) =>
+      setTimeout(r, POLL_INTERVAL_MS)
+    );
 
     try {
 
@@ -102,9 +104,10 @@ async function pollJob(
 
       const job = res.data;
 
+      // Update UI progress
       onTick(job);
 
-      // SUCCESS / FAILURE COMPLETE
+      // Upload finished successfully or failed
       if (
         job.status === "done" ||
         job.status === "failed"
@@ -114,34 +117,59 @@ async function pollJob(
 
     } catch (err: any) {
 
-      // VERY IMPORTANT:
-      // Ignore temporary "Job not found" polling failures
-      // because backend processing may still continue successfully
+      const status = err?.response?.status;
 
-      if (err?.response?.status === 404) {
+      // TEMPORARY: Job not found yet
+      // Backend processing may still be running
+      if (status === 404) {
 
         console.warn(
           `Upload job ${jobId} not found yet — retrying polling...`
         );
 
+        onTick({
+          status: "processing"
+        });
+
         continue;
       }
 
-      // Ignore temporary 502/503 Render hiccups
+      // TEMPORARY Render/network hiccups
       if (
-        err?.response?.status === 502 ||
-        err?.response?.status === 503 ||
-        err?.response?.status === 504
+        status === 502 ||
+        status === 503 ||
+        status === 504
       ) {
 
         console.warn(
           `Temporary server issue while polling ${jobId} — retrying...`
         );
 
+        onTick({
+          status: "processing"
+        });
+
         continue;
       }
 
-      // Any other error = real failure
+      // Network disconnected temporarily
+      if (
+        err?.message?.includes("Network Error") ||
+        err?.code === "ECONNABORTED"
+      ) {
+
+        console.warn(
+          `Network issue while polling ${jobId} — retrying...`
+        );
+
+        onTick({
+          status: "processing"
+        });
+
+        continue;
+      }
+
+      // Real error
       throw err;
     }
   }
@@ -150,7 +178,6 @@ async function pollJob(
     "Upload processing timed out after 10 minutes"
   );
 }
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const AdminUpload: React.FC = () => {
