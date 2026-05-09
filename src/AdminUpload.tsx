@@ -61,8 +61,10 @@ const STORAGE_BADGE: Record<string, { label: string; cls: string }> = {
   local_fallback: { label: "⚠ Local", cls: "storage-warn"  },
 };
 
+// ── Polling constants ─────────────────────────────────────────────────────────
+
 const POLL_INTERVAL_MS = 4000;
-const POLL_TIMEOUT_MS  = 10 * 60 * 1000; // 10 minutes
+const POLL_TIMEOUT_MS  = 10 * 60 * 1000;
 
 // ── Toast ────────────────────────────────────────────────────────────────────
 
@@ -81,7 +83,7 @@ const Toast: React.FC<{ msg: string; type: "success" | "error"; onClose: () => v
   </div>
 );
 
-// ── Polling helper ────────────────────────────────────────────────────────────
+// ── Polling Helper ────────────────────────────────────────────────────────────
 
 async function pollJob(
   jobId: string,
@@ -92,26 +94,16 @@ async function pollJob(
 
   while (Date.now() < deadline) {
 
-    await new Promise((r) =>
-      setTimeout(r, POLL_INTERVAL_MS)
-    );
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
     try {
 
-      const res = await api.get(
-        `/admin/materials/upload_status/${jobId}`
-      );
-
+      const res = await api.get(`/admin/materials/upload_status/${jobId}`);
       const job = res.data;
 
-      // Update UI progress
       onTick(job);
 
-      // Upload finished successfully or failed
-      if (
-        job.status === "done" ||
-        job.status === "failed"
-      ) {
+      if (job.status === "done" || job.status === "failed") {
         return job;
       }
 
@@ -119,65 +111,37 @@ async function pollJob(
 
       const status = err?.response?.status;
 
-      // TEMPORARY: Job not found yet
-      // Backend processing may still be running
+      // Temporary backend delay — job not registered yet
       if (status === 404) {
-
-        console.warn(
-          `Upload job ${jobId} not found yet — retrying polling...`
-        );
-
-        onTick({
-          status: "processing"
-        });
-
+        console.warn(`Upload job ${jobId} not found yet — retrying polling...`);
+        onTick({ status: "processing" });
         continue;
       }
 
-      // TEMPORARY Render/network hiccups
-      if (
-        status === 502 ||
-        status === 503 ||
-        status === 504
-      ) {
-
-        console.warn(
-          `Temporary server issue while polling ${jobId} — retrying...`
-        );
-
-        onTick({
-          status: "processing"
-        });
-
+      // Temporary Render/network issues
+      if (status === 502 || status === 503 || status === 504) {
+        console.warn(`Temporary server issue while polling ${jobId} — retrying...`);
+        onTick({ status: "processing" });
         continue;
       }
 
-      // Network disconnected temporarily
+      // Network interruption
       if (
         err?.message?.includes("Network Error") ||
         err?.code === "ECONNABORTED"
       ) {
-
-        console.warn(
-          `Network issue while polling ${jobId} — retrying...`
-        );
-
-        onTick({
-          status: "processing"
-        });
-
+        console.warn(`Network issue while polling ${jobId} — retrying...`);
+        onTick({ status: "processing" });
         continue;
       }
 
-      // Real error
       throw err;
     }
   }
 
-  throw new Error(
-    "Upload processing timed out after 10 minutes"
-  );
+  throw new Error("Upload processing timed out after 10 minutes");
 }
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const AdminUpload: React.FC = () => {
@@ -196,7 +160,8 @@ const AdminUpload: React.FC = () => {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const showToast = (msg: string, type: "success" | "error" = "success") => {
-    setToast({ msg, type }); setTimeout(() => setToast(null), 3500);
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
   };
 
   const [groupedDocs,   setGroupedDocs]   = useState<Record<string, Doc[]>>({});
@@ -218,14 +183,18 @@ const AdminUpload: React.FC = () => {
       const init: Record<string, boolean> = {};
       Object.keys(res.data).forEach((k) => (init[k] = true));
       setExpanded(init);
-    } catch { console.error("Failed to fetch grouped docs"); }
-    finally { setDocsLoading(false); }
+    } catch {
+      console.error("Failed to fetch grouped docs");
+    } finally {
+      setDocsLoading(false);
+    }
   };
 
   const toggleExpand = (key: string) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
 
   const handleFileDrop = (e: React.DragEvent) => {
-    e.preventDefault(); setDragOver(false);
+    e.preventDefault();
+    setDragOver(false);
     const dropped = Array.from(e.dataTransfer.files).filter((f) => f.type === "application/pdf");
     if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
   };
@@ -240,113 +209,189 @@ const AdminUpload: React.FC = () => {
   const removeFile    = (i: number) => setFiles((p) => p.filter((_, idx) => idx !== i));
   const clearAllFiles = () => { setFiles([]); if (fileRef.current) fileRef.current.value = ""; };
 
-  // ── Upload with background-task + polling ───────────────────────────────────
+  // ── Optimized handleUpload ─────────────────────────────────────────────────
+
   const handleUpload = async () => {
-    if (files.length === 0) { alert("Please select at least one PDF file."); return; }
+
+    if (files.length === 0) {
+      alert("Please select at least one PDF file.");
+      return;
+    }
+
     setLoading(true);
 
     const initialProgress: UploadProgress[] = files.map((f) => ({
       filename: f.name,
-      status:   "pending",
+      status: "pending",
       progress: 0,
     }));
+
     setUploadProgress(initialProgress);
 
     let successCount = 0;
-    let errorCount   = 0;
+    let errorCount = 0;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    // ── Single file processor ────────────────────────────────────────────────
 
-      // Mark uploading (sending to server)
-      setUploadProgress((prev) =>
-        prev.map((p, idx) => idx === i ? { ...p, status: "uploading", progress: 20 } : p)
-      );
-
-      const fd = new FormData();
-      fd.append("file",           file);
-      fd.append("course",         course);
-      fd.append("subject",        subject);
-      fd.append("module",         module);
-      fd.append("chapter",        chapter);
-      fd.append("unit",           unit);
-      fd.append("section",        section);
-      fd.append("custom_heading", customHeading);
+    const processSingleFile = async (file: File, index: number) => {
 
       try {
-        // POST returns 202 + { job_id } in <1 second — no more Render timeout
+
+        // Mark uploading
+        setUploadProgress((prev) =>
+          prev.map((p, idx) =>
+            idx === index ? { ...p, status: "uploading", progress: 20 } : p
+          )
+        );
+
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("course", course);
+        fd.append("subject", subject);
+        fd.append("module", module);
+        fd.append("chapter", chapter);
+        fd.append("unit", unit);
+        fd.append("section", section);
+        fd.append("custom_heading", customHeading);
+
+        // Start upload
         const postRes = await api.post("/admin/materials/upload_enhanced", fd);
         const { job_id } = postRes.data;
 
-        // Show "processing" while polling
+        // Queued
         setUploadProgress((prev) =>
-          prev.map((p, idx) => idx === i ? { ...p, status: "uploading", progress: 50 } : p)
+          prev.map((p, idx) =>
+            idx === index ? { ...p, status: "uploading", progress: 50 } : p
+          )
         );
 
-        // Poll until Docling + Pinecone finish
+        // Polling
         const finalJob = await pollJob(job_id, (job) => {
           if (job.status === "processing") {
             setUploadProgress((prev) =>
-              prev.map((p, idx) => idx === i ? { ...p, progress: 70 } : p)
+              prev.map((p, idx) =>
+                idx === index ? { ...p, status: "uploading", progress: 70 } : p
+              )
             );
           }
         });
 
+        // Success
         if (finalJob.status === "done") {
+
           const stats = finalJob.result?.statistics;
+
           setUploadProgress((prev) =>
             prev.map((p, idx) =>
-              idx === i ? { ...p, status: "success", progress: 100, stats } : p
-            )
-          );
-          successCount++;
-        } else {
-          setUploadProgress((prev) =>
-            prev.map((p, idx) =>
-              idx === i
-                ? { ...p, status: "error", progress: 100, error: finalJob.error || "Processing failed" }
+              idx === index
+                ? { ...p, status: "success", progress: 100, stats }
                 : p
             )
           );
+
+          successCount++;
+
+        } else {
+
+          // Failed processing
+          setUploadProgress((prev) =>
+            prev.map((p, idx) =>
+              idx === index
+                ? {
+                    ...p,
+                    status: "error",
+                    progress: 100,
+                    error: finalJob.error || "Processing failed",
+                  }
+                : p
+            )
+          );
+
           errorCount++;
         }
 
       } catch (err: any) {
+
         const errMsg =
           err?.response?.data?.detail ||
           err?.message ||
           "Upload failed";
 
+        // Ignore fake temporary failures from polling
+        if (
+          errMsg.includes("timed out") ||
+          errMsg.includes("Job not found")
+        ) {
+          console.warn(`Temporary polling issue for ${file.name}`);
+
+          setUploadProgress((prev) =>
+            prev.map((p, idx) =>
+              idx === index ? { ...p, status: "uploading", progress: 85 } : p
+            )
+          );
+
+          return;
+        }
+
+        // Real error
         setUploadProgress((prev) =>
           prev.map((p, idx) =>
-            idx === i ? { ...p, status: "error", progress: 100, error: errMsg } : p
+            idx === index
+              ? { ...p, status: "error", progress: 100, error: errMsg }
+              : p
           )
         );
+
         errorCount++;
       }
+    };
+
+    // ── Concurrent uploads (2 at a time) ─────────────────────────────────────
+
+    const CONCURRENT_UPLOADS = 2;
+
+    for (let i = 0; i < files.length; i += CONCURRENT_UPLOADS) {
+      const batch = files.slice(i, i + CONCURRENT_UPLOADS);
+      await Promise.all(
+        batch.map((file, batchIndex) =>
+          processSingleFile(file, i + batchIndex)
+        )
+      );
     }
 
     setLoading(false);
 
+    // ── Final toasts ──────────────────────────────────────────────────────────
+
     if (successCount > 0 && errorCount === 0) {
-      const label = successCount === 1 ? "1 file uploaded" : `${successCount} files uploaded`;
+
+      const label =
+        successCount === 1
+          ? "1 file uploaded"
+          : `${successCount} files uploaded`;
+
       showToast(`✔ ${label} successfully!`, "success");
+
       setTimeout(() => {
         setFiles([]);
         setUploadProgress([]);
         if (fileRef.current) fileRef.current.value = "";
       }, 1500);
+
     } else if (successCount > 0) {
-      showToast(`⚠ ${successCount} file(s) uploaded, ${errorCount} failed.`, "error");
+      showToast(`⚠ ${successCount} uploaded, ${errorCount} failed.`, "error");
     } else {
-      showToast(`Upload failed for all ${errorCount} file(s).`, "error");
+      showToast(`Upload failed for all files.`, "error");
     }
 
     fetchGrouped();
   };
 
-  const confirmDelete    = (doc: Doc) => { setDeleteTarget(doc); setDeleteReport(null); };
+  // ── Delete handlers ───────────────────────────────────────────────────────
+
+  const confirmDelete   = (doc: Doc) => { setDeleteTarget(doc); setDeleteReport(null); };
   const closeDeleteModal = () => { setDeleteTarget(null); setDeleteReport(null); };
+
   const executeDelete = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
@@ -354,9 +399,14 @@ const AdminUpload: React.FC = () => {
       const res = await api.delete(`/admin/materials/${deleteTarget._id}`);
       setDeleteReport(res.data.report as DeleteReport);
       fetchGrouped();
-    } catch (err: any) { alert(err.response?.data?.detail || "Delete failed."); }
-    finally { setDeleteLoading(false); }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Delete failed.");
+    } finally {
+      setDeleteLoading(false);
+    }
   };
+
+  // ── Derived values ────────────────────────────────────────────────────────
 
   const totalDocs = Object.values(groupedDocs).reduce((a, d) => a + d.length, 0);
   const s3Count   = Object.values(groupedDocs).flat().filter((d) => d.storage_backend === "s3").length;
@@ -364,10 +414,14 @@ const AdminUpload: React.FC = () => {
   const filteredGroups = Object.entries(groupedDocs).filter(([key, docs]) => {
     if (!searchDocs.trim()) return true;
     const q = searchDocs.toLowerCase();
-    return key.toLowerCase().includes(q) || docs.some((d) =>
-      d.filename.toLowerCase().includes(q) ||
-      d.chapter?.toLowerCase().includes(q) ||
-      d.subject?.toLowerCase().includes(q)
+    return (
+      key.toLowerCase().includes(q) ||
+      docs.some(
+        (d) =>
+          d.filename.toLowerCase().includes(q) ||
+          d.chapter?.toLowerCase().includes(q) ||
+          d.subject?.toLowerCase().includes(q)
+      )
     );
   });
 
@@ -376,11 +430,13 @@ const AdminUpload: React.FC = () => {
     docs.forEach((doc) => {
       const subj = doc.subject || "General";
       const chap = doc.chapter || doc.filename.replace(".pdf", "");
-      (tree[subj] = tree[subj] || {})[chap] = (tree[subj][chap] = tree[subj][chap] || []);
+      (tree[subj] = tree[subj] || {})[chap] = tree[subj][chap] || [];
       tree[subj][chap].push(doc);
     });
     return tree;
   };
+
+  // ── Sub-components ────────────────────────────────────────────────────────
 
   const DocItem = ({ doc }: { doc: Doc }) => {
     const sb    = doc.storage_backend || "local";
@@ -412,6 +468,8 @@ const AdminUpload: React.FC = () => {
       </div>
     );
   };
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="admin-upload-page">
@@ -473,7 +531,9 @@ const AdminUpload: React.FC = () => {
                   </div>
                   {deleteReport.errors.length > 0 && (
                     <div style={{ background: "var(--error-bg)", border: "1.5px solid #fecaca", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
-                      {deleteReport.errors.map((e, i) => <div key={i} style={{ fontSize: "0.78rem", color: "#7f1d1d" }}>• {e}</div>)}
+                      {deleteReport.errors.map((e, i) => (
+                        <div key={i} style={{ fontSize: "0.78rem", color: "#7f1d1d" }}>• {e}</div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -518,7 +578,9 @@ const AdminUpload: React.FC = () => {
           <div className="upload-card-title">
             <span className="upload-card-icon">📤</span>
             Select PDF Files
-            {files.length > 0 && <button className="clear-files-btn" onClick={clearAllFiles}>Clear all</button>}
+            {files.length > 0 && (
+              <button className="clear-files-btn" onClick={clearAllFiles}>Clear all</button>
+            )}
           </div>
           <div
             className={`drop-zone${dragOver ? " drop-zone-over" : ""}`}
@@ -527,7 +589,14 @@ const AdminUpload: React.FC = () => {
             onDrop={handleFileDrop}
             onClick={() => fileRef.current?.click()}
           >
-            <input ref={fileRef} type="file" accept=".pdf" multiple style={{ display: "none" }} onChange={handleFileSelect} />
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf"
+              multiple
+              style={{ display: "none" }}
+              onChange={handleFileSelect}
+            />
             {files.length === 0 ? (
               <div className="drop-zone-placeholder">
                 <span className="drop-zone-icon">📂</span>
@@ -541,10 +610,15 @@ const AdminUpload: React.FC = () => {
                     <span className="file-item-icon">📄</span>
                     <span className="file-item-name">{f.name}</span>
                     <span className="file-item-size">{(f.size / 1024).toFixed(0)} KB</span>
-                    <button className="file-item-remove" onClick={(e) => { e.stopPropagation(); removeFile(i); }}>✕</button>
+                    <button
+                      className="file-item-remove"
+                      onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                    >✕</button>
                   </div>
                 ))}
-                <div className="drop-zone-add-more" onClick={() => fileRef.current?.click()}>+ Add more PDFs</div>
+                <div className="drop-zone-add-more" onClick={() => fileRef.current?.click()}>
+                  + Add more PDFs
+                </div>
               </div>
             )}
           </div>
@@ -564,9 +638,12 @@ const AdminUpload: React.FC = () => {
           {/* CS Level tabs */}
           <div className="course-tab-group" role="group" aria-label="Select CS level">
             {COURSES.map((c) => (
-              <button key={c} type="button"
+              <button
+                key={c}
+                type="button"
                 className={`course-tab${course === c ? " course-tab-active" : ""}`}
-                onClick={() => setCourse(c)}>
+                onClick={() => setCourse(c)}
+              >
                 {LEVEL_ICONS[c] || "📁"} {c}
               </button>
             ))}
@@ -575,32 +652,55 @@ const AdminUpload: React.FC = () => {
           <div className="upload-fields">
             <div className="upload-fields-row">
               <div className="upload-field">
-                <label className="upload-label">Subject <span className="upload-label-req">*</span><span className="upload-label-opt"> — for tree grouping</span></label>
-                <input className="upload-input" placeholder="e.g. Company Law, Governance, IBC"
-                  value={subject} onChange={(e) => setSubject(e.target.value)} />
+                <label className="upload-label">
+                  Subject <span className="upload-label-req">*</span>
+                  <span className="upload-label-opt"> — for tree grouping</span>
+                </label>
+                <input
+                  className="upload-input"
+                  placeholder="e.g. Company Law, Governance, IBC"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                />
               </div>
               <div className="upload-field">
                 <label className="upload-label">Module <span className="upload-label-opt">(optional)</span></label>
-                <input className="upload-input" placeholder="e.g. Module 1, Paper 2"
-                  value={module} onChange={(e) => setModule(e.target.value)} />
+                <input
+                  className="upload-input"
+                  placeholder="e.g. Module 1, Paper 2"
+                  value={module}
+                  onChange={(e) => setModule(e.target.value)}
+                />
               </div>
             </div>
             <div className="upload-fields-row">
               <div className="upload-field">
                 <label className="upload-label">Chapter <span className="upload-label-opt">(uses filename if blank)</span></label>
-                <input className="upload-input" placeholder="e.g. Chapter 5: Board Meetings"
-                  value={chapter} onChange={(e) => setChapter(e.target.value)} />
+                <input
+                  className="upload-input"
+                  placeholder="e.g. Chapter 5: Board Meetings"
+                  value={chapter}
+                  onChange={(e) => setChapter(e.target.value)}
+                />
               </div>
               <div className="upload-field">
                 <label className="upload-label">Unit <span className="upload-label-opt">(optional)</span></label>
-                <input className="upload-input" placeholder="e.g. Unit 1 – Overview"
-                  value={unit} onChange={(e) => setUnit(e.target.value)} />
+                <input
+                  className="upload-input"
+                  placeholder="e.g. Unit 1 – Overview"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                />
               </div>
             </div>
             <div className="upload-field">
               <label className="upload-label">Section / Extra Tag <span className="upload-label-opt">(optional)</span></label>
-              <input className="upload-input" placeholder="e.g. SS-1 – Secretarial Standard on Board Meetings"
-                value={section} onChange={(e) => setSection(e.target.value)} />
+              <input
+                className="upload-input"
+                placeholder="e.g. SS-1 – Secretarial Standard on Board Meetings"
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+              />
             </div>
           </div>
 
@@ -619,26 +719,29 @@ const AdminUpload: React.FC = () => {
                     </span>
                     {p.stats && (
                       <span className="upload-progress-stats">
-                        {p.stats.total_vectors} vectors{p.stats.storage_backend === "s3" && " · ☁ S3"}
+                        {p.stats.total_vectors} vectors
+                        {p.stats.storage_backend === "s3" && " · ☁ S3"}
                       </span>
                     )}
                   </div>
-                  {p.status === "uploading" && (
-                    <div className="upload-progress-processing">
-                      <span className="auth-spinner" style={{ marginRight: 6 }} />
-                      {p.progress <= 20 ? "Sending file…" : p.progress <= 50 ? "Queued — processing started…" : "Indexing with Docling + Pinecone…"}
+                  {p.error && <div className="upload-progress-error">{p.error}</div>}
+                  {p.stats && (
+                    <div className="upload-progress-details">
+                      Text: {p.stats.text_chunks} · Tables: {p.stats.table_chunks}
                     </div>
                   )}
-                  {p.error && <div className="upload-progress-error">{p.error}</div>}
-                  {p.stats && <div className="upload-progress-details">Text: {p.stats.text_chunks} · Tables: {p.stats.table_chunks}</div>}
                 </div>
               ))}
             </div>
           )}
 
-          <button className="upload-submit-btn" onClick={handleUpload} disabled={loading || files.length === 0}>
+          <button
+            className="upload-submit-btn"
+            onClick={handleUpload}
+            disabled={loading || files.length === 0}
+          >
             {loading
-              ? <><span className="auth-spinner" /> Processing {files.length} file{files.length > 1 ? "s" : ""}… (this may take a few minutes)</>
+              ? <><span className="auth-spinner" /> Uploading {files.length} file{files.length > 1 ? "s" : ""}…</>
               : `Upload ${files.length > 0 ? files.length : ""} PDF${files.length > 1 ? "s" : ""} →`}
           </button>
         </div>
@@ -653,13 +756,23 @@ const AdminUpload: React.FC = () => {
           </h2>
           <div className="docs-controls">
             <div className="view-toggle">
-              <button className={`view-toggle-btn${viewMode === "tree" ? " view-toggle-active" : ""}`} onClick={() => setViewMode("tree")}>🌳 Tree</button>
-              <button className={`view-toggle-btn${viewMode === "flat" ? " view-toggle-active" : ""}`} onClick={() => setViewMode("flat")}>📋 List</button>
+              <button
+                className={`view-toggle-btn${viewMode === "tree" ? " view-toggle-active" : ""}`}
+                onClick={() => setViewMode("tree")}
+              >🌳 Tree</button>
+              <button
+                className={`view-toggle-btn${viewMode === "flat" ? " view-toggle-active" : ""}`}
+                onClick={() => setViewMode("flat")}
+              >📋 List</button>
             </div>
             <div className="docs-search-wrap">
               <span className="docs-search-icon">🔍</span>
-              <input className="docs-search-input" placeholder="Search by name, subject, chapter…"
-                value={searchDocs} onChange={(e) => setSearchDocs(e.target.value)} />
+              <input
+                className="docs-search-input"
+                placeholder="Search by name, subject, chapter…"
+                value={searchDocs}
+                onChange={(e) => setSearchDocs(e.target.value)}
+              />
             </div>
           </div>
         </div>
@@ -677,10 +790,11 @@ const AdminUpload: React.FC = () => {
           <div className="docs-accordion">
             {filteredGroups.map(([levelKey, docs]) => {
               const filteredDocs = searchDocs
-                ? docs.filter((d) =>
-                    d.filename.toLowerCase().includes(searchDocs.toLowerCase()) ||
-                    d.chapter?.toLowerCase().includes(searchDocs.toLowerCase()) ||
-                    d.subject?.toLowerCase().includes(searchDocs.toLowerCase())
+                ? docs.filter(
+                    (d) =>
+                      d.filename.toLowerCase().includes(searchDocs.toLowerCase()) ||
+                      d.chapter?.toLowerCase().includes(searchDocs.toLowerCase()) ||
+                      d.subject?.toLowerCase().includes(searchDocs.toLowerCase())
                   )
                 : docs;
               if (filteredDocs.length === 0) return null;
@@ -743,9 +857,10 @@ const AdminUpload: React.FC = () => {
           <div className="docs-accordion">
             {filteredGroups.map(([key, docs]) => {
               const filteredDocs = searchDocs
-                ? docs.filter((d) =>
-                    d.filename.toLowerCase().includes(searchDocs.toLowerCase()) ||
-                    d.chapter?.toLowerCase().includes(searchDocs.toLowerCase())
+                ? docs.filter(
+                    (d) =>
+                      d.filename.toLowerCase().includes(searchDocs.toLowerCase()) ||
+                      d.chapter?.toLowerCase().includes(searchDocs.toLowerCase())
                   )
                 : docs;
               if (filteredDocs.length === 0) return null;
