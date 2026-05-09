@@ -47,7 +47,34 @@ const stripSourcesText = (answer: string) => {
     ? { body: answer.trim(), sourcesText: "" }
     : { body: split[0].trim(), sourcesText: split.slice(1).join("").trim() };
 };
-
+/**
+ * Strips markdown syntax so Web Speech API reads clean prose,
+ * not asterisks, hashes, backticks, brackets, etc.
+ */
+const stripMarkdown = (text: string): string => {
+  return text
+    .replace(/```[\s\S]*?```/g, " code block ")
+    .replace(/`[^`]*`/g, (m) => m.slice(1, -1))
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/(\*{3}|_{3})(.*?)\1/g, "$2")
+    .replace(/(\*{2}|_{2})(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/~~(.*?)~~/g, "$1")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/^[-*_]{3,}\s*$/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/<[^>]+>/g, "")
+    .replace(/^\|[-| :]+\|$/gm, "")
+    .replace(/\|/g, " ")
+    .replace(/[#@$^&*~`\\]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+};
 // CS-specific suggestion chips
 const SUGGESTIONS = [
   "What is the Companies Act, 2013?",
@@ -251,7 +278,7 @@ const Chat: React.FC = () => {
                   )}
                   {isAssistant && (
                     <div className="message-actions" role="group" aria-label="Message actions">
-                      <button className="action-btn" onClick={() => handleSpeakToggle(i, m.content)} title="Text to speech">
+                      <button className="action-btn" onClick={() => handleSpeakToggle(i, stripMarkdown(m.content))} title="Text to speech">
                         {speakLabel(i)}
                       </button>
                       {speakingIndex === i && (
