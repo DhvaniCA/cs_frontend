@@ -87,19 +87,68 @@ async function pollJob(
   jobId: string,
   onTick: (job: any) => void,
 ): Promise<any> {
+
   const deadline = Date.now() + POLL_TIMEOUT_MS;
 
   while (Date.now() < deadline) {
+
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    const res = await api.get(`/admin/materials/upload_status/${jobId}`);
-    const job = res.data;
-    onTick(job);
-    if (job.status === "done" || job.status === "failed") {
-      return job;
+
+    try {
+
+      const res = await api.get(
+        `/admin/materials/upload_status/${jobId}`
+      );
+
+      const job = res.data;
+
+      onTick(job);
+
+      // SUCCESS / FAILURE COMPLETE
+      if (
+        job.status === "done" ||
+        job.status === "failed"
+      ) {
+        return job;
+      }
+
+    } catch (err: any) {
+
+      // VERY IMPORTANT:
+      // Ignore temporary "Job not found" polling failures
+      // because backend processing may still continue successfully
+
+      if (err?.response?.status === 404) {
+
+        console.warn(
+          `Upload job ${jobId} not found yet — retrying polling...`
+        );
+
+        continue;
+      }
+
+      // Ignore temporary 502/503 Render hiccups
+      if (
+        err?.response?.status === 502 ||
+        err?.response?.status === 503 ||
+        err?.response?.status === 504
+      ) {
+
+        console.warn(
+          `Temporary server issue while polling ${jobId} — retrying...`
+        );
+
+        continue;
+      }
+
+      // Any other error = real failure
+      throw err;
     }
   }
 
-  throw new Error("Upload timed out after 10 minutes");
+  throw new Error(
+    "Upload processing timed out after 10 minutes"
+  );
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
