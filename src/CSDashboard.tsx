@@ -9,9 +9,9 @@ const VIDEO_API_BASE = (import.meta as any).env?.VITE_VIDEO_API_URL ?? "http://1
 const POLL_INTERVAL_MS = 20000;
 const POLL_TIMEOUT_MS  = 15 * 60 * 1000;
 
-// CS level metadata — different from CA
+// CS level metadata
 const LEVEL_META: Record<Level, { icon: string; desc: string; color: string }> = {
-  CSEET:   { icon: "🌱", desc: "Core concepts & Company Law basics", color: "#0a7248" },
+  CSEET:        { icon: "🌱", desc: "Core concepts & Company Law basics", color: "#0a7248" },
   Executive:    { icon: "⚖️", desc: "Corporate Governance & Securities Law", color: "#a05b0a" },
   Professional: { icon: "🏛️", desc: "Advanced Law & Practice",              color: "#0f3d38" },
   Others:       { icon: "📁", desc: "Reference & supplementary",            color: "#5b21b6" },
@@ -46,6 +46,12 @@ interface VideoJob {
   dashboardId: string;
   startedAt: number;
   status: "polling" | "completed" | "failed" | "timeout";
+  message?: string;
+}
+
+// ← NEW: Smart PDF upload state per item _id
+interface SmartUpload {
+  status: "idle" | "uploading" | "success" | "error";
   message?: string;
 }
 
@@ -128,6 +134,10 @@ const CSDashboard: React.FC = () => {
   const [isAdmin,     setIsAdmin]     = useState(false);
   const [videoJobs,   setVideoJobs]   = useState<Record<string, VideoJob>>({});
 
+  // ← NEW: Smart PDF upload state + hidden file input refs (keyed by item._id)
+  const [smartUploads, setSmartUploads] = useState<Record<string, SmartUpload>>({});
+  const smartPdfRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
   const videoJobsRef = useRef<Record<string, VideoJob>>({});
   videoJobsRef.current = videoJobs;
   const pollTimers = useRef<Record<string, ReturnType<typeof setInterval>>>({});
@@ -186,7 +196,13 @@ const CSDashboard: React.FC = () => {
         if (item.video_url && (item.status === "completed" || !item.status)) {
           clearInterval(pollTimers.current[dashboardId]);
           delete pollTimers.current[dashboardId];
-          patchTreeItem(dashboardId, { video_url: item.video_url, audio_url: item.audio_url, simplified_pdf_url: item.simplified_pdf_url, status: "completed", video_created_at: item.video_created_at });
+          patchTreeItem(dashboardId, {
+            video_url:          item.video_url,
+            audio_url:          item.audio_url,
+            simplified_pdf_url: item.simplified_pdf_url,
+            status:             "completed",
+            video_created_at:   item.video_created_at,
+          });
           setVideoJobs((prev) => ({ ...prev, [dashboardId]: { ...prev[dashboardId], status: "completed", message: "Video ready!" } }));
         } else if (item.status === "failed") {
           clearInterval(pollTimers.current[dashboardId]);
@@ -224,13 +240,70 @@ const CSDashboard: React.FC = () => {
     }
   };
 
+  // ============================================================
+  // ← NEW: SMART PDF UPLOAD HANDLER (Admin only)
+  // ============================================================
+  const handleSmartPdfSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    item: PDFItem,
+  ) => {
+    const file = e.target.files?.[0];
+    // Reset input so re-selecting the same file fires onChange again
+    if (e.target) e.target.value = "";
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      alert("Only PDF files are accepted for Smart PDF upload.");
+      return;
+    }
+
+    const id = item._id;
+    setSmartUploads((prev) => ({ ...prev, [id]: { status: "uploading", message: "Uploading…" } }));
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+
+      const res = await api.post(
+        `/admin/materials/${id}/upload_smart_pdf`,
+        fd,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+
+      const { simplified_pdf_url } = res.data as { simplified_pdf_url: string };
+
+      // Patch tree + open viewer immediately — no page refresh needed
+      patchTreeItem(id, { simplified_pdf_url });
+
+      setSmartUploads((prev) => ({
+        ...prev,
+        [id]: { status: "success", message: "Smart PDF saved!" },
+      }));
+
+      // Auto-reset after 4 s
+      setTimeout(() => {
+        setSmartUploads((prev) => ({ ...prev, [id]: { status: "idle" } }));
+      }, 4000);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail ?? "Upload failed. Please try again.";
+      setSmartUploads((prev) => ({ ...prev, [id]: { status: "error", message: detail } }));
+      setTimeout(() => {
+        setSmartUploads((prev) => ({ ...prev, [id]: { status: "idle" } }));
+      }, 4000);
+    }
+  };
+
   const toggleModule = (key: string) => setOpenModules((prev) => ({ ...prev, [key]: !prev[key] }));
-  const expandAll  = () => {
+
+  const expandAll = () => {
     if (!selected || !tree[selected]) return;
     const keys: Record<string, boolean> = {};
-    Object.keys(tree[selected]).forEach((subject) => Object.keys(tree[selected][subject]).forEach((mod) => { keys[`${subject}-${mod}`] = true; }));
+    Object.keys(tree[selected]).forEach((subject) =>
+      Object.keys(tree[selected][subject]).forEach((mod) => { keys[`${subject}-${mod}`] = true; })
+    );
     setOpenModules(keys);
   };
+
   const collapseAll = () => setOpenModules({});
   const goBack      = () => { setSelected(null); setSearchQuery(""); setOpenModules({}); };
   const openViewer  = (item: PDFItem, type: ViewerType = "pdf") => setViewer({ type, item });
@@ -239,17 +312,17 @@ const CSDashboard: React.FC = () => {
   const handleDownloadAudio = async (item: PDFItem) => {
     if (!item.audio_url) return;
     try {
-      const res      = await api.get("/dashboard/audio-proxy", { params: { url: item.audio_url }, responseType: "blob" });
-      const blob     = new Blob([res.data], { type: "audio/mpeg" });
-      const objUrl   = URL.createObjectURL(blob);
-      const anchor   = document.createElement("a");
+      const res    = await api.get("/dashboard/audio-proxy", { params: { url: item.audio_url }, responseType: "blob" });
+      const blob   = new Blob([res.data], { type: "audio/mpeg" });
+      const objUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
       anchor.href     = objUrl;
       anchor.download = item.title.replace(/[^a-z0-9]/gi, "_").toLowerCase() + "_audio.mp3";
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
       URL.revokeObjectURL(objUrl);
-    } catch (err: any) { alert("Could not download audio. Please try again."); }
+    } catch { alert("Could not download audio. Please try again."); }
   };
 
   const getFilteredChapters = (subject: string, module: string) => {
@@ -258,7 +331,11 @@ const CSDashboard: React.FC = () => {
     const q = searchQuery.toLowerCase();
     const filtered: Record<string, any[]> = {};
     Object.entries(chapters).forEach(([ch, items]: [string, any]) => {
-      const matched = items.filter((it: any) => it.title?.toLowerCase().includes(q) || ch.toLowerCase().includes(q) || it.unit?.toLowerCase().includes(q));
+      const matched = items.filter((it: any) =>
+        it.title?.toLowerCase().includes(q) ||
+        ch.toLowerCase().includes(q) ||
+        it.unit?.toLowerCase().includes(q)
+      );
       if (matched.length > 0) filtered[ch] = matched;
     });
     return filtered;
@@ -308,6 +385,69 @@ const CSDashboard: React.FC = () => {
     );
 
     return null;
+  };
+
+  // ============================================================
+  // ← NEW: SMART PDF UPLOAD BUTTON RENDERER (Admin only)
+  // ============================================================
+  const renderSmartPdfUploadButton = (item: PDFItem) => {
+    if (!isAdmin) return null;
+
+    const id  = item._id;
+    const job = smartUploads[id] ?? { status: "idle" };
+
+    const label =
+      job.status === "uploading" ? "⏫ Uploading…"        :
+      job.status === "success"   ? "✅ Saved!"             :
+      job.status === "error"     ? "❌ Retry"              :
+      item.simplified_pdf_url    ? "🧠 Replace Smart PDF" :
+                                   "🧠 Upload Smart PDF";
+
+    const titleText =
+      job.status === "uploading" ? "Uploading Smart PDF to S3…"                      :
+      job.status === "error"     ? (job.message ?? "Upload failed — click to retry") :
+      item.simplified_pdf_url    ? "Smart PDF exists — click to replace"             :
+                                   "Upload a simplified PDF for students (Admin only)";
+
+    return (
+      <>
+        {/* One hidden file input per item — triggered programmatically by the button */}
+        <input
+          ref={(el) => { smartPdfRefs.current[id] = el; }}
+          type="file"
+          accept=".pdf,application/pdf"
+          style={{ display: "none" }}
+          onChange={(e) => handleSmartPdfSelect(e, item)}
+        />
+        <button
+          className="resource-action-btn resource-action-smart-pdf-upload"
+          disabled={job.status === "uploading"}
+          title={titleText}
+          onClick={() => smartPdfRefs.current[id]?.click()}
+          style={{
+            opacity:    job.status === "uploading" ? 0.65 : 1,
+            cursor:     job.status === "uploading" ? "not-allowed" : "pointer",
+            background:
+              job.status === "success" ? "rgba(16,185,129,0.15)" :
+              job.status === "error"   ? "rgba(239,68,68,0.12)"  :
+              item.simplified_pdf_url  ? "rgba(16,185,129,0.08)" :
+                                         "rgba(139,92,246,0.12)",
+            borderColor:
+              job.status === "success" ? "rgba(16,185,129,0.5)"  :
+              job.status === "error"   ? "rgba(239,68,68,0.5)"   :
+              item.simplified_pdf_url  ? "rgba(16,185,129,0.35)" :
+                                         "rgba(139,92,246,0.4)",
+            color:
+              job.status === "success" ? "#10b981" :
+              job.status === "error"   ? "#ef4444"  :
+              item.simplified_pdf_url  ? "#10b981"  :
+                                         "#a78bfa",
+          }}
+        >
+          {label}
+        </button>
+      </>
+    );
   };
 
   // ============================================================
@@ -459,29 +599,53 @@ const CSDashboard: React.FC = () => {
                                       </button>
 
                                       <div className="resource-actions">
+
+                                        {/* ── Read PDF ── */}
                                         <button className="resource-action-btn resource-action-read" onClick={() => openViewer(item, "pdf")} title="Read PDF">
                                           📖 Read
                                         </button>
 
+                                        {/* ── Smart PDF viewer (shown to all users when URL exists) ── */}
                                         {item.simplified_pdf_url && (
                                           <button className="resource-action-btn resource-action-smart-pdf" onClick={() => openViewer(item, "smart_pdf")} title="AI-enhanced Smart PDF">
                                             🧠 Smart PDF
                                           </button>
                                         )}
 
+                                        {/* ── Video button (all states via renderVideoButton) ── */}
                                         {renderVideoButton(item)}
 
+                                        {/* ── Audio (from MongoDB audio_url) ── */}
                                         {item.audio_url && (
                                           <button className="resource-action-btn resource-action-audio" onClick={() => openViewer(item, "audio")} title="Listen">
                                             🎵 Audio
                                           </button>
                                         )}
 
+                                        {/* ── Ask AI ── */}
                                         <button className="resource-action-btn resource-action-chat" onClick={() => (window as any).goChat?.()} title="Ask AI about this topic">
                                           💬 Ask AI
                                         </button>
+
+                                        {/* ── Upload Smart PDF (Admin only) ── */}
+                                        {renderSmartPdfUploadButton(item)}
+
                                       </div>
 
+                                      {/* ── Smart PDF upload status messages ── */}
+                                      {smartUploads[item._id]?.status === "uploading" && (
+                                        <div className="video-job-status" style={{ color: "#a78bfa" }}>
+                                          <span className="spinner-mini" />
+                                          <span>Uploading Smart PDF…</span>
+                                        </div>
+                                      )}
+                                      {smartUploads[item._id]?.status === "error" && (
+                                        <div className="video-job-status" style={{ color: "#ef4444" }}>
+                                          ⚠ {smartUploads[item._id].message}
+                                        </div>
+                                      )}
+
+                                      {/* ── Inline video job status message ── */}
                                       {videoJobs[item._id]?.status === "polling" && (
                                         <div className="video-job-status">
                                           <span className="spinner-mini" />
@@ -553,16 +717,25 @@ const CSDashboard: React.FC = () => {
             </div>
 
             <div className="multimedia-content">
-              {viewer.type === "pdf" && <PdfViewer url={viewer.item.pdf_url} title={viewer.item.title} />}
+              {/* ── PDF Viewer ── */}
+              {viewer.type === "pdf" && (
+                <PdfViewer url={viewer.item.pdf_url} title={viewer.item.title} />
+              )}
+
+              {/* ── Smart PDF Viewer ── */}
               {viewer.type === "smart_pdf" && viewer.item.simplified_pdf_url && (
                 <PdfViewer url={viewer.item.simplified_pdf_url} title={`Smart PDF – ${viewer.item.title}`} />
               )}
+
+              {/* ── Video Viewer ── */}
               {viewer.type === "video" && viewer.item.video_url && (
                 <video controls autoPlay className="multimedia-frame video-frame" controlsList="nodownload" key={viewer.item.video_url}>
                   <source src={viewer.item.video_url} type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
               )}
+
+              {/* ── Audio Viewer ── */}
               {viewer.type === "audio" && viewer.item.audio_url && (
                 <div className="audio-player-container">
                   <audio controls autoPlay className="audio-player" controlsList="nodownload" key={viewer.item.audio_url}>
