@@ -224,7 +224,7 @@ const CSDashboard: React.FC = () => {
       const res = await fetch(`${VIDEO_API_BASE}/api/process`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdf_s3_url: item.pdf_url, dashboard_id: dashboardId, use_gemini: true, use_openai: true }),
+        body: JSON.stringify({ pdf_s3_url: item.pdf_url, dashboard_id: dashboardId,platform:"cs", use_gemini: true, use_openai: true }),
       });
       if (!res.ok) throw new Error(`Video API returned ${res.status}`);
       const data = await res.json();
