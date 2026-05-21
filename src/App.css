@@ -965,3 +965,168 @@ body {
 .chat-bubble-content.markdown-body h1,.chat-bubble-content.markdown-body h2,.chat-bubble-content.markdown-body h3,.chat-bubble-content.markdown-body h4 { margin: 0.5em 0 0.2em 0; line-height: 1; }
 .chat-bubble-content.markdown-body blockquote { margin: 0.2em 0; }
 .chat-bubble-content.markdown-body pre { margin: 0.3em 0; }
+
+
+
+/* =============================================
+   TOAST NOTIFICATION SYSTEM
+   Add to the bottom of App.css
+   ============================================= */
+
+.toast-container {
+  position: fixed;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+
+.toast-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 18px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-lg);
+  animation: toastSlideDown 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: all;
+  min-width: 280px;
+  max-width: 480px;
+}
+
+@keyframes toastSlideDown {
+  from { opacity: 0; transform: translateY(-16px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0)     scale(1);    }
+}
+
+.toast-info {
+  background: var(--primary);
+  color: white;
+  border: 1.5px solid var(--primary-light);
+}
+
+.toast-error {
+  background: #fff1f1;
+  color: #b01c1c;
+  border: 1.5px solid rgba(176, 28, 28, 0.25);
+}
+
+.toast-success {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1.5px solid rgba(10, 114, 72, 0.25);
+}
+
+.toast-msg {
+  flex: 1;
+  line-height: 1.45;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  opacity: 0.55;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: var(--transition);
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.toast-close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* =============================================
+   MOBILE PDF VIEWER
+   Add to the bottom of App.css
+   ============================================= */
+
+/* Wrapper fills the entire multimedia-content area */
+.pdf-mobile-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  overflow: hidden;
+}
+
+/* The Google Docs embed takes all available space above the bar */
+.pdf-mobile-wrapper iframe {
+  flex: 1;
+  min-height: 0;
+  border: none;
+  background: #f5f5f5;
+}
+
+/* Fixed action bar at the bottom on mobile */
+.pdf-mobile-bar {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--primary);
+  border-top: 1px solid var(--primary-light);
+  flex-shrink: 0;
+}
+
+.pdf-mobile-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: var(--transition);
+  white-space: nowrap;
+  cursor: pointer;
+  border: none;
+}
+
+.pdf-mobile-download {
+  background: var(--accent);
+  color: var(--primary-dark);
+  box-shadow: 0 3px 10px rgba(212, 136, 42, 0.35);
+}
+
+.pdf-mobile-download:hover {
+  background: var(--accent-light);
+  transform: translateY(-1px);
+}
+
+.pdf-mobile-open {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: 1.5px solid rgba(255, 255, 255, 0.25) !important;
+}
+
+.pdf-mobile-open:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* On desktop, the mobile bar should never show — but just in case */
+@media (min-width: 769px) {
+  .pdf-mobile-wrapper iframe {
+    height: 100%;
+  }
+  .pdf-mobile-bar {
+    display: none;
+  }
+}
