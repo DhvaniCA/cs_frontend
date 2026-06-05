@@ -1317,3 +1317,7 @@ body {
 .chat-card:focus-within {
   outline: none;
 }
+.cs-user-level-badge { /* pill showing the student's level */ }
+.cs-admin-badge      { /* pill showing admin status */        }
+.level-card-my-badge { /* "My Level" ribbon on the card */    }
+.level-card-active   { /* highlighted border/glow on active level card */ }
