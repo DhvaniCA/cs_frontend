@@ -841,13 +841,19 @@ body {
 .chapter-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .chapter-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
 .resource-list { display: flex; flex-direction: column; gap: 7px; }
-.resource-item { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.resource-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
 .resource-unit-label { font-size: 0.74rem; color: var(--text-muted); padding: 2px 8px 4px; font-style: italic; }
 .pdf-btn { background: var(--primary); color: white; border: none; padding: 9px 13px; border-radius: var(--radius-sm); cursor: pointer; text-align: left; transition: var(--transition); font-family: var(--font-body); font-size: 0.83rem; font-weight: 500; width: 100%; display: flex; align-items: center; gap: 8px; }
 .pdf-btn:hover { background: var(--accent); color: var(--primary-dark); transform: translateX(4px); }
 .pdf-btn-icon { flex-shrink: 0; font-size: 0.9rem; }
 .pdf-btn-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.resource-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+.resource-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1 1 100%;   /* force onto its own full-width row */
+  width: 100%;      /* so its children now have a real boundary to wrap against */
+}
 .resource-action-btn { padding: 7px 12px; border: none; border-radius: var(--radius-sm); font-family: var(--font-body); font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: var(--transition); white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .resource-action-btn:hover:not(:disabled) { transform: translateY(-1px); }
 .resource-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -874,6 +880,18 @@ body {
 .spinner-mini { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(15,61,56,0.2); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
 .video-job-status { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-muted); padding: 4px 8px; background: var(--surface-2); border-radius: var(--radius-sm); margin-top: 4px; }
 .video-job-elapsed { font-size: 0.72rem; color: var(--text-muted); }
+
+/* Subject detail: chapter Index (left) + chapter resources (right) */
+.cs-subject-detail {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.cs-subject-index {
+  position: sticky;
+  top: 12px;
+}
 
 /* Multimedia modal */
 .multimedia-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
@@ -911,6 +929,11 @@ body {
   .adm-stats { grid-template-columns: repeat(2,1fr); }
   .upload-section-grid { grid-template-columns: 1fr; }
   .plan-cards { grid-template-columns: 1fr; }
+  .cs-subject-detail { grid-template-columns: 240px 1fr; gap: 16px; }
+}
+@media (max-width: 760px) {
+  .cs-subject-detail { grid-template-columns: 1fr; gap: 16px; }
+  .cs-subject-index { position: static; }
 }
 @media (max-width: 640px) {
   .adm-page { padding: 18px 14px 40px; gap: 18px; }
@@ -925,13 +948,36 @@ body {
   .level-cards-grid { grid-template-columns: 1fr 1fr; }
   .cs-dashboard { padding: 20px 16px; }
   .cs-header h1 { font-size: 1.5rem; }
+  .cs-header-inner { gap: 12px; }
+  .cs-search-wrap { width: 100%; }
+  .cs-search-input,
+  .cs-search-input:focus { width: 100%; }
+  .cs-user-level-badge, .cs-admin-badge { font-size: 0.78rem; }
+  .subject-card { padding: 16px; }
+  .subject-card h3 { font-size: 1.05rem; }
+  .cs-breadcrumb { font-size: 12px; padding: 8px 10px; }
   .auth-form-row { grid-template-columns: 1fr; }
   .auth-trust { gap: 10px; font-size: 0.68rem; }
   .chat-card { height: calc(100vh - 72px); border-radius: var(--radius-md); }
   .chat-bubble { max-width: 88%; }
   .chat-messages { padding: 14px 12px; }
   .chat-input-bar { padding: 10px 12px; flex-wrap: nowrap; }
-  .multimedia-header { flex-direction: column; align-items: flex-start; padding: 16px 20px; }
+
+  /* Multimedia (PDF/Video/Audio) modal — go near-fullscreen on phones */
+  .multimedia-modal { padding: 0; }
+  .multimedia-container { width: 100%; height: 100%; max-height: 100vh; border-radius: 0; }
+  .multimedia-header { flex-direction: column; align-items: stretch; padding: 12px 14px; gap: 10px; }
+  .multimedia-header-info { min-width: 0; gap: 10px; }
+  .multimedia-header-icon { font-size: 22px; }
+  .multimedia-header-title { font-size: 1rem; margin-bottom: 2px; }
+  .multimedia-header-sub, .multimedia-header-unit { font-size: 0.72rem; }
+  .multimedia-back-btn { padding: 6px 10px; font-size: 0.8rem; }
+  .multimedia-header-actions { width: 100%; justify-content: flex-start; gap: 6px; }
+  .multimedia-header-actions .resource-action-btn { font-size: 0.7rem; padding: 6px 9px; }
+  .multimedia-close-btn { width: 30px; height: 30px; font-size: 15px; }
+  .audio-player-container { padding: 28px 16px; gap: 20px; }
+  .audio-player-info h4 { font-size: 1.15rem; }
+
   .admin-upload-page { padding: 18px 14px 40px; gap: 24px; }
   .docs-section-header { flex-direction: column; align-items: flex-start; }
   .docs-search-input { width: 100%; }
@@ -944,6 +990,9 @@ body {
   .app-role-badge { padding: 4px 8px; }
   .app-role-text { font-size: 0.72rem; }
   .app-logout-btn { padding: 5px 9px; font-size: 0.73rem; }
+  .resource-actions { gap: 5px; }
+  .resource-action-btn { font-size: 0.7rem; padding: 6px 9px; flex: 1 1 calc(33% - 6px); justify-content: center; }
+  .pdf-btn { font-size: 0.78rem; padding: 8px 10px; }
 }
 @media (max-width: 380px) {
   .app-header-center { display: none; }
@@ -1049,6 +1098,11 @@ body {
   background: rgba(0, 0, 0, 0.08);
 }
 
+@media (max-width: 480px) {
+  .toast-container { top: 62px; width: calc(100vw - 24px); }
+  .toast-item { min-width: 0; width: 100%; }
+}
+
 /* =============================================
    MOBILE PDF VIEWER
    Add to the bottom of App.css
@@ -1119,6 +1173,12 @@ body {
 
 .pdf-mobile-open:hover {
   background: rgba(255, 255, 255, 0.25);
+}
+
+/* Shown for Smart PDFs on mobile — download intentionally disabled */
+.pdf-mobile-open-full {
+  flex: 1;
+  text-align: center;
 }
 
 /* On desktop, the mobile bar should never show — but just in case */
