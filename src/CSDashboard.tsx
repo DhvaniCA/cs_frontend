@@ -244,7 +244,10 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, className = "multimed
   if (isMobile) {
     const googleDocsUrl = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(url)}`;
     return (
-      <div className="pdf-mobile-wrapper">
+      <div
+        className="pdf-mobile-wrapper"
+        onContextMenu={hideDownload ? (e) => e.preventDefault() : undefined}
+      >
         <iframe
           src={googleDocsUrl}
           title={title}
@@ -278,7 +281,15 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, className = "multimed
   // downloads should be disabled, e.g. for Smart PDFs.
   const desktopSrc = hideDownload ? `${blobUrl}#toolbar=0&navpanes=0` : blobUrl;
 
-  return <iframe src={desktopSrc} title={title} className={className} allowFullScreen />;
+  return (
+    <iframe
+      src={desktopSrc}
+      title={title}
+      className={className}
+      allowFullScreen
+      onContextMenu={hideDownload ? (e) => e.preventDefault() : undefined}
+    />
+  );
 };
 
 // ============================================================
